@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+from copy import deepcopy
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
@@ -41,13 +42,11 @@ class GCMDeviceManager(models.Manager):
 
 
 class GCMDeviceQuerySet(models.query.QuerySet):
-	def send_message(self, message, **kwargs):
+	def send_message(self, message, title=None, **kwargs):
 		if self:
 			from .gcm import send_bulk_message
 
-			data = kwargs.pop("extra", {})
-			if message is not None:
-				data["message"] = message
+			extra = kwargs.pop("extra", {})
 
 			response = []
 			for cloud_type in ("GCM", "FCM"):
@@ -56,9 +55,23 @@ class GCMDeviceQuerySet(models.query.QuerySet):
 						"registration_id", flat=True
 					)
 				)
+				data_payload = deepcopy(extra)
+				notification_payload = {}
+				if message is not None:
+					if cloud_type == "FCM":
+						notification_payload["body"] = message
+					else:
+						data_payload["message"] = message
+				if title is not None and cloud_type == "FCM":
+					notification_payload["title"] = title
+
 				if reg_ids:
 					r = send_bulk_message(
-						registration_ids=reg_ids, data=data, cloud_type=cloud_type, **kwargs
+						registration_ids=reg_ids,
+						data_payload=data_payload,
+						notification_payload=notification_payload,
+						cloud_type=cloud_type,
+						**kwargs
 					)
 					response.append(r)
 
@@ -84,16 +97,25 @@ class GCMDevice(Device):
 	class Meta:
 		verbose_name = _("GCM device")
 
-	def send_message(self, message, **kwargs):
+	def send_message(self, message, title=None, **kwargs):
 		from .gcm import send_message
 
-		data = kwargs.pop("extra", {})
+		data_payload = kwargs.pop("extra", {})
+		notification_payload = {}
 		if message is not None:
-			data["message"] = message
+			if self.cloud_type == "FCM":
+				notification_payload["body"] = message
+			else:
+				data_payload["message"] = message
+		if title is not None and self.cloud_type == "FCM":
+			notification_payload["title"] = title
 
 		return send_message(
-			registration_id=self.registration_id, data=data,
-			cloud_type=self.cloud_message_type, **kwargs
+			registration_id=self.registration_id,
+			data_payload=data_payload,
+			notification_payload=notification_payload,
+			cloud_type=self.cloud_message_type,
+			**kwargs
 		)
 
 
