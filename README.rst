@@ -83,6 +83,7 @@ For WNS, you need both the ``WNS_PACKAGE_SECURITY_KEY`` and the ``WNS_SECRET_KEY
 - ``APNS_ERROR_TIMEOUT``: The timeout on APNS sockets.
 - ``GCM_ERROR_TIMEOUT``: The timeout on GCM POSTs.
 - ``USER_MODEL``: Your user model of choice. Eg. ``myapp.User``. Defaults to ``settings.AUTH_USER_MODEL``.
+- ``UPDATE_ON_DUPLICATE_REG_ID``: Transform create of an existing Device (based on registration id) into a update. See below `Update of device with duplicate registration ID`_ for more details.
 
 Sending messages
 ----------------
@@ -106,12 +107,16 @@ GCM and APNS services have slightly different semantics. The app tries to offer 
 	device = APNSDevice.objects.get(registration_id=apns_token)
 	device.send_message("You've got mail") # Alert message may only be sent as text.
 	device.send_message(None, badge=5) # No alerts but with badge.
-	device.send_message(None, badge=1, extra={"foo": "bar"}) # Silent message with badge and added custom data.
+	device.send_message(None, content_available=1, extra={"foo": "bar"}) # Silent message with custom data.
+	# alert with title and body.
+	device.send_message("alert" : {"title" : "Game Request", "body" : "Bob wants to play poker", extra={"foo": "bar"})
+	device.send_message("Hello again", thread_id="123" extra={"foo": "bar"}) # set thread-id to allow iOS to merge notifications
 
 .. note::
 	APNS does not support sending payloads that exceed 2048 bytes (increased from 256 in 2014).
 	The message is only one part of the payload, if
 	once constructed the payload exceeds the maximum size, an ``APNSDataOverflow`` exception will be raised before anything is sent.
+  Reference: `Apple Payload Documentation <https://developer.apple.com/library/content/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/CreatingtheNotificationPayload.html#//apple_ref/doc/uid/TP40008194-CH10-SW1>`_
 
 Sending messages in bulk
 ------------------------
@@ -242,6 +247,18 @@ Routes can be added one of two ways:
 		url(r'^device/apns/?$', APNSDeviceAuthorizedViewSet.as_view({'post': 'create'}), name='create_apns_device'),
 		# ...
 	)
+
+Update of device with duplicate registration ID
+-----------------------------------------------
+
+The DRF viewset enforce the uniqueness of the registration ID. In same use case it
+may cause issue: If an already registered mobile change its user and it will
+fail to register because the registration ID already exist.
+
+When option ``UPDATE_ON_DUPLICATE_REG_ID`` is set to True, then any creation of
+device with an already existing registration ID will be transformed into an update.
+
+The ``UPDATE_ON_DUPLICATE_REG_ID`` only works with DRF.
 
 
 Python 3 support
