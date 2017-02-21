@@ -6,17 +6,22 @@ https://firebase.google.com/docs/cloud-messaging/
 """
 
 import json
+from django.core.exceptions import ImproperlyConfigured
+from . import NotificationError, decodestr
 from .models import GCMDevice
+from .settings import PUSH_NOTIFICATIONS_SETTINGS as SETTINGS
+from .dynamic import get_gcm_api_key, get_fcm_api_key
 
 try:
-	from urllib.request import Request, urlopen
+	from urllib.request import Request, urlopen as _urlopen
 except ImportError:
 	# Python 2 support
-	from urllib2 import Request, urlopen
+	from urllib2 import Request, urlopen as _urlopen
 
-from django.core.exceptions import ImproperlyConfigured
-from . import NotificationError
-from .settings import PUSH_NOTIFICATIONS_SETTINGS as SETTINGS
+
+def urlopen(*av, **kw):
+	# just to allow testing
+	return _urlopen(*av, **kw)
 
 
 # Valid keys for FCM messages
@@ -46,8 +51,9 @@ def _chunks(l, n):
 		yield l[i:i + n]
 
 
-def _gcm_send(payload, content_type):
-	key = SETTINGS.get("GCM_API_KEY")
+def _gcm_send(payload, content_type, application_id):
+	key = get_gcm_api_key(application_id)
+
 	if not key:
 		raise ImproperlyConfigured(
 			'You need to set PUSH_NOTIFICATIONS_SETTINGS["GCM_API_KEY"] to send messages through GCM.'
@@ -59,11 +65,12 @@ def _gcm_send(payload, content_type):
 		"Content-Length": str(len(payload)),
 	}
 	request = Request(SETTINGS["GCM_POST_URL"], payload, headers)
-	return urlopen(request, timeout=SETTINGS["GCM_ERROR_TIMEOUT"]).read().decode("utf-8")
+	return decodestr(urlopen(request, timeout=SETTINGS["GCM_ERROR_TIMEOUT"]).read())
 
 
-def _fcm_send(payload, content_type):
-	key = SETTINGS.get("FCM_API_KEY")
+def _fcm_send(payload, content_type, application_id):
+	key = get_fcm_api_key(application_id)
+
 	if not key:
 		raise ImproperlyConfigured(
 			'You need to set PUSH_NOTIFICATIONS_SETTINGS["FCM_API_KEY"] to send messages through FCM.'
@@ -75,7 +82,7 @@ def _fcm_send(payload, content_type):
 		"Content-Length": str(len(payload)),
 	}
 	request = Request(SETTINGS["FCM_POST_URL"], payload, headers)
-	return urlopen(request, timeout=SETTINGS["FCM_ERROR_TIMEOUT"]).read().decode("utf-8")
+	return decodestr(urlopen(request, timeout=SETTINGS["FCM_ERROR_TIMEOUT"]).read())
 
 
 def _cm_handle_response(registration_ids, response_data, cloud_type):
@@ -113,7 +120,7 @@ def _cm_handle_response(registration_ids, response_data, cloud_type):
 	return response
 
 
-def _cm_send_request(registration_ids, data, cloud_type="GCM", use_fcm_notifications=True, **kwargs):
+def _cm_send_request(registration_ids, data, application_id, cloud_type="GCM", use_fcm_notifications=True, **kwargs):
 	"""
 	Sends a FCM or GCM notification to one or more registration_ids as json data.
 	The registration_ids needs to be a list.
@@ -150,11 +157,12 @@ def _cm_send_request(registration_ids, data, cloud_type="GCM", use_fcm_notificat
 
 	# Sends requests and handles the response
 	if cloud_type == "GCM":
-		response = json.loads(_gcm_send(json_payload, "application/json"))
+		response = json.loads(_gcm_send(json_payload, "application/json", application_id))
 	elif cloud_type == "FCM":
-		response = json.loads(_fcm_send(json_payload, "application/json"))
+		response = json.loads(_fcm_send(json_payload, "application/json", application_id))
 	else:
-		raise ImproperlyConfigured("cloud_type must be FCM or GCM not %s" % str(cloud_type))
+		raise ImproperlyConfigured("cloud_type must be GCM or FCM not %s" % str(cloud_type))
+
 	return _cm_handle_response(registration_ids, response, cloud_type)
 
 
@@ -169,7 +177,7 @@ def _cm_handle_canonical_id(canonical_id, current_id, cloud_type):
 			.update(registration_id=canonical_id)
 
 
-def send_message(registration_ids, data, cloud_type, **kwargs):
+def send_message(registration_ids, data, application_id=None, cloud_type="GCM", **kwargs):
 	"""
 	Sends a FCM (or GCM) notification to one or more registration_ids. The registration_ids
 	can be a list or a single string. This will send the notification as json data.
@@ -189,16 +197,19 @@ def send_message(registration_ids, data, cloud_type, **kwargs):
 		return
 
 	# Bundles the registration_ids in an list if only one is sent
+	bulk = False
 	if not isinstance(registration_ids, list):
+		bulk = True
 		registration_ids = [registration_ids] if registration_ids else None
 
 	# FCM only allows up to 1000 reg ids per bulk message
 	# https://firebase.google.com/docs/cloud-messaging/server#http-request
 	if registration_ids:
+
 		ret = []
 		for chunk in _chunks(registration_ids, max_recipients):
-			ret.append(_cm_send_request(chunk, data, cloud_type=cloud_type, **kwargs))
-		return ret[0] if len(ret) == 1 else ret
+			ret.append(_cm_send_request(chunk, data, application_id, cloud_type=cloud_type, **kwargs))
+		return ret[0] if len(ret) == 1 and bulk else ret
 
 
 send_bulk_message = send_message

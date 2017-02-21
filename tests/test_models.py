@@ -1,10 +1,11 @@
 import json
+
 from django.test import TestCase
 from django.utils import timezone
-from push_notifications.gcm import GCMError, send_bulk_message
+from push_notifications.gcm import GCMError, send_message
 from push_notifications.models import GCMDevice, APNSDevice
 from ._mock import mock
-
+import os
 
 # Mock responses
 
@@ -87,7 +88,21 @@ class GCMModelTestCase(TestCase):
 				json.dumps({
 					"data": {"message": "Hello world"},
 					"registration_ids": ["abc"]
-				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
+
+	def test_gcm_send_message_with_app_id(self):
+		device = GCMDevice.objects.create(
+			registration_id="abc",
+			application_id="qwerty",
+			cloud_message_type="GCM"
+		)
+		with mock.patch("push_notifications.gcm._gcm_send", return_value=GCM_JSON_RESPONSE) as p:
+			device.send_message("Hello world")
+			p.assert_called_once_with(
+				json.dumps({
+					"data": {"message": "Hello world"},
+					"registration_ids": ["abc"]
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", "qwerty")
 
 	def test_gcm_send_message_extra(self):
 		device = GCMDevice.objects.create(registration_id="abc", cloud_message_type="GCM")
@@ -100,7 +115,7 @@ class GCMModelTestCase(TestCase):
 					"collapse_key": "test_key",
 					"data": {"message": "Hello world", "foo": "bar"},
 					"registration_ids": ["abc"]
-				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
 
 	def test_gcm_send_message_collapse_key(self):
 		device = GCMDevice.objects.create(registration_id="abc", cloud_message_type="GCM")
@@ -113,7 +128,7 @@ class GCMModelTestCase(TestCase):
 					"data": {"message": "Hello world"},
 					"registration_ids": ["abc"],
 					"collapse_key": "test_key"
-				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
 
 	def test_gcm_send_message_to_multiple_devices(self):
 		self._create_devices(["abc", "abc1"])
@@ -126,7 +141,7 @@ class GCMModelTestCase(TestCase):
 				json.dumps({
 					"data": {"message": "Hello world"},
 					"registration_ids": ["abc", "abc1"]
-				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
 
 	def test_gcm_send_message_active_devices(self):
 		GCMDevice.objects.create(registration_id="abc", active=True, cloud_message_type="GCM")
@@ -140,7 +155,7 @@ class GCMModelTestCase(TestCase):
 				json.dumps({
 					"data": {"message": "Hello world"},
 					"registration_ids": ["abc"]
-				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
 
 	def test_gcm_send_message_collapse_to_multiple_devices(self):
 		self._create_devices(["abc", "abc1"])
@@ -154,7 +169,7 @@ class GCMModelTestCase(TestCase):
 						"collapse_key": "test_key",
 						"data": {"message": "Hello world"},
 						"registration_ids": ["abc", "abc1"]
-					}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+					}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
 
 	def test_gcm_send_message_to_single_device_with_error(self):
 		# these errors are device specific, device.active will be set false
@@ -247,9 +262,9 @@ class GCMModelTestCase(TestCase):
 
 		with mock.patch("push_notifications.gcm._cm_send_request", return_value="") as p:
 			reg_ids = [obj.registration_id for obj in GCMDevice.objects.all()]
-			send_bulk_message(reg_ids, {"message": "Hello World"}, "GCM")
+			send_message(reg_ids, {"message": "Hello World"}, cloud_type="GCM")
 			p.assert_called_once_with(
-				[u"abc", u"abc1"], {"message": "Hello World"}, cloud_type="GCM"
+				[u"abc", u"abc1"], {"message": "Hello World"}, None, cloud_type="GCM"
 			)
 
 	def test_fcm_send_message(self):
@@ -262,7 +277,21 @@ class GCMModelTestCase(TestCase):
 				json.dumps({
 					"notification": {"body": "Hello world"},
 					"registration_ids": ["abc"]
-				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
+
+	def test_fcm_send_message_with_app_id(self):
+		device = GCMDevice.objects.create(
+			registration_id="abc",
+			application_id="qwerty",
+			cloud_message_type="FCM"
+		)
+		with mock.patch("push_notifications.gcm._fcm_send", return_value=GCM_JSON_RESPONSE) as p:
+			device.send_message("Hello world")
+			p.assert_called_once_with(
+				json.dumps({
+					"notification": {"body": "Hello world"},
+					"registration_ids": ["abc"]
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", "qwerty")
 
 	def test_fcm_send_message_extra_data(self):
 		device = GCMDevice.objects.create(registration_id="abc", cloud_message_type="FCM")
@@ -275,7 +304,7 @@ class GCMModelTestCase(TestCase):
 					"data": {"foo": "bar"},
 					"notification": {"body": "Hello world"},
 					"registration_ids": ["abc"],
-				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
 
 	def test_fcm_send_message_extra_options(self):
 		device = GCMDevice.objects.create(registration_id="abc", cloud_message_type="FCM")
@@ -288,7 +317,7 @@ class GCMModelTestCase(TestCase):
 					"collapse_key": "test_key",
 					"notification": {"body": "Hello world"},
 					"registration_ids": ["abc"],
-				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
 
 	def test_fcm_send_message_extra_notification(self):
 		device = GCMDevice.objects.create(registration_id="abc", cloud_message_type="FCM")
@@ -300,7 +329,7 @@ class GCMModelTestCase(TestCase):
 				json.dumps({
 					"notification": {"body": "Hello world", "title": "test", "icon": "test_icon"},
 					"registration_ids": ["abc"]
-				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
 
 	def test_fcm_send_message_extra_options_and_notification_and_data(self):
 		device = GCMDevice.objects.create(registration_id="abc", cloud_message_type="FCM")
@@ -319,7 +348,7 @@ class GCMModelTestCase(TestCase):
 					"data": {"foo": "bar"},
 					"registration_ids": ["abc"],
 					"collapse_key": "test_key"
-				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
 
 	def test_fcm_send_message_to_multiple_devices(self):
 		self._create_fcm_devices(["abc", "abc1"])
@@ -332,7 +361,7 @@ class GCMModelTestCase(TestCase):
 				json.dumps({
 					"notification": {"body": "Hello world"},
 					"registration_ids": ["abc", "abc1"]
-				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
 
 	def test_fcm_send_message_active_devices(self):
 		GCMDevice.objects.create(registration_id="abc", active=True, cloud_message_type="FCM")
@@ -346,7 +375,7 @@ class GCMModelTestCase(TestCase):
 				json.dumps({
 					"notification": {"body": "Hello world"},
 					"registration_ids": ["abc"]
-				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+				}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
 
 	def test_fcm_send_message_collapse_to_multiple_devices(self):
 		self._create_fcm_devices(["abc", "abc1"])
@@ -360,7 +389,7 @@ class GCMModelTestCase(TestCase):
 						"collapse_key": "test_key",
 						"notification": {"body": "Hello world"},
 						"registration_ids": ["abc", "abc1"]
-					}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json")
+					}, separators=(",", ":"), sort_keys=True).encode("utf-8"), "application/json", None)
 
 	def test_fcm_send_message_to_single_device_with_error(self):
 		# these errors are device specific, device.active will be set false
@@ -453,9 +482,9 @@ class GCMModelTestCase(TestCase):
 
 		with mock.patch("push_notifications.gcm._cm_send_request", return_value="") as p:
 			reg_ids = [obj.registration_id for obj in GCMDevice.objects.all()]
-			send_bulk_message(reg_ids, {"message": "Hello World"}, "GCM")
+			send_message(reg_ids, {"message": "Hello World"}, cloud_type="GCM")
 			p.assert_called_once_with(
-				[u"abc", u"abc1"], {"message": "Hello World"}, cloud_type="GCM"
+				[u"abc", u"abc1"], {"message": "Hello World"}, None, cloud_type="GCM"
 			)
 
 	def test_apns_send_message(self):
@@ -482,3 +511,162 @@ class GCMModelTestCase(TestCase):
 		self.assertIsNotNone(device.pk)
 		self.assertIsNotNone(device.date_created)
 		self.assertEqual(device.date_created.date(), timezone.now().date())
+
+	def test_apns_send_message_cert(self):
+		device = APNSDevice.objects.create(registration_id="abc")
+		socket = mock.MagicMock()
+
+		with mock.patch("push_notifications.apns._apns_pack_frame") as p:
+			with mock.patch("push_notifications.apns._apns_create_socket") as cs:
+				cs.return_value = socket
+				device.send_message(
+					"Hello world", extra={"foo": "bar"},
+					identifier=1, expiration=2, priority=5,
+					certfile="12345"
+				)
+				p.assert_called_once_with("abc", b'{"aps":{"alert":"Hello world"},"foo":"bar"}', 1, 2, 5)
+				cs.assert_called_once_with(('gateway.push.apple.com', 2195), application_id=None, certfile='12345')
+
+
+class APNSModelWithSettingsTestCase(TestCase):
+	def test_apns_send_message_with_app_id(self):
+		from django.conf import settings
+		path = os.path.join(os.path.dirname(__file__), "test_data", "good_revoked.pem")
+		device = APNSDevice.objects.create(
+			registration_id="abc",
+			application_id="asdfg"
+		)
+		device2 = APNSDevice.objects.create(
+			registration_id="def",
+		)
+		settings.PUSH_NOTIFICATIONS_SETTINGS['APNS_CERTIFICATE'] = path
+		settings.PUSH_NOTIFICATIONS_SETTINGS['APNS_CERTIFICATES'] = {
+			'asdfg': path
+		}
+		settings.PUSH_NOTIFICATIONS_SETTINGS['APNS_HOSTS'] = {
+			'asdfg': "111.222.333"
+		}
+		settings.PUSH_NOTIFICATIONS_SETTINGS['APNS_PORTS'] = {
+			'asdfg': 334
+		}
+		import ssl
+		socket = mock.MagicMock()
+		with mock.patch("ssl.wrap_socket", return_value=socket) as s:
+			with mock.patch("push_notifications.apns._apns_pack_frame") as p:
+				device.send_message("Hello world", expiration=1)
+				p.assert_called_once_with("abc", b'{"aps":{"alert":"Hello world"}}', 0, 1, 10)
+				s.assert_called_once_with(*s.call_args[0], ca_certs=None, certfile=path, ssl_version=ssl.PROTOCOL_TLSv1)
+				socket.connect.assert_called_with(("111.222.333", 334))
+		socket = mock.MagicMock()
+		with mock.patch("ssl.wrap_socket", return_value=socket) as s:
+			with mock.patch("push_notifications.apns._apns_pack_frame") as p:
+				device2.send_message("Hello world", expiration=1)
+				p.assert_called_once_with("def", b'{"aps":{"alert":"Hello world"}}', 0, 1, 10)
+				s.assert_called_once_with(*s.call_args[0], ca_certs=None, certfile=path, ssl_version=ssl.PROTOCOL_TLSv1)
+				socket.connect.assert_called_with(("gateway.push.apple.com", 2195))
+
+	def test_apns_send_multi_message_with_app_id(self):
+		from django.conf import settings
+		path = os.path.join(os.path.dirname(__file__), "test_data", "good_revoked.pem")
+		device = APNSDevice.objects.create(
+			registration_id="abc",
+			application_id="asdfg"
+		)
+		device = APNSDevice.objects.create(
+			registration_id="def",
+			application_id="asdfg"
+		)
+		settings.PUSH_NOTIFICATIONS_SETTINGS['APNS_CERTIFICATES'] = {
+			'asdfg': path
+		}
+		import ssl
+		socket = mock.MagicMock()
+		with mock.patch("ssl.wrap_socket", return_value=socket) as s:
+			with mock.patch("push_notifications.apns._apns_pack_frame") as p:
+				APNSDevice.objects.all().send_message("Hello world", expiration=1)
+				device.send_message("Hello world", expiration=1)
+				p.assert_any_call("abc", b'{"aps":{"alert":"Hello world"}}', 0, 1, 10)
+				p.assert_any_call("def", b'{"aps":{"alert":"Hello world"}}', 0, 1, 10)
+				s.assert_any_call(*s.call_args_list[0][0], ca_certs=None, certfile=path, ssl_version=ssl.PROTOCOL_TLSv1)
+
+
+class GCMModelWithSettingsTestCase(TestCase):
+	def test_fcm_send_message_with_app_id(self):
+		from django.conf import settings
+		device = GCMDevice.objects.create(
+			registration_id="abc",
+			application_id="asdfg",
+			cloud_message_type="FCM"
+		)
+		settings.PUSH_NOTIFICATIONS_SETTINGS['FCM_API_KEYS'] = {
+			'asdfg': 'uiopkey'
+		}
+		try:
+			from StringIO import StringIO
+		except ImportError:
+			from io import StringIO
+		with mock.patch("push_notifications.gcm.urlopen", return_value=StringIO(GCM_JSON_RESPONSE)) as u:
+			device.send_message("Hello world")
+			request = u.call_args[0][0]
+			assert request.headers['Authorization'] == 'key=uiopkey'
+
+	def test_fcm_send_multi_message_with_app_id(self):
+		from django.conf import settings
+		device = GCMDevice.objects.create(
+			registration_id="abc",
+			application_id="asdfg",
+			cloud_message_type="FCM"
+		)
+		device = GCMDevice.objects.create(
+			registration_id="def",
+			application_id="asdfg",
+			cloud_message_type="FCM"
+		)
+		settings.PUSH_NOTIFICATIONS_SETTINGS['FCM_API_KEYS'] = {
+			'asdfg': 'uiopkey'
+		}
+		try:
+			from StringIO import StringIO
+		except ImportError:
+			from io import StringIO
+		import json
+		with mock.patch("push_notifications.gcm.urlopen", return_value=StringIO(GCM_JSON_RESPONSE)) as u:
+			GCMDevice.objects.all().send_message("Hello world")
+			assert u.call_count == 1
+			request = u.call_args[0][0]
+			assert request.headers['Authorization'] == 'key=uiopkey'
+
+	def test_gcm_send_multi_message_with_different_app_id(self):
+		from django.conf import settings
+		device = GCMDevice.objects.create(
+			registration_id="abc",
+			application_id="asdfg",
+			cloud_message_type="FCM"
+		)
+		device = GCMDevice.objects.create(
+			registration_id="def",
+			application_id="uiop",
+			cloud_message_type="FCM"
+		)
+		settings.PUSH_NOTIFICATIONS_SETTINGS['FCM_API_KEYS'] = {
+			'asdfg': 'asdfgkey',
+			'uiop': 'uiopkey'
+		}
+		try:
+			from StringIO import StringIO
+		except ImportError:
+			from io import StringIO
+		import json
+		requests = []
+
+		def c():
+			def f(r, **kw):
+				requests.append(r)
+				return StringIO(GCM_JSON_RESPONSE)
+			return f
+		with mock.patch("push_notifications.gcm.urlopen", new_callable=c) as u:
+			GCMDevice.objects.all().send_message("Hello world")
+			keys = set(r.headers['Authorization'] for r in requests)
+			assert len(keys) == 2
+			assert 'key=asdfgkey' in keys
+			assert 'key=uiopkey' in keys
