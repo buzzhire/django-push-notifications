@@ -74,6 +74,7 @@ For WNS, you are required to use one of the ``WNS_PACKAGE_SECURITY_ID`` and ``WN
 ``WNS_PACKAGE_SECURITY_IDS`` and ``WNS_SECRET_KEYS`` pair, or
 ``WNS_PACKAGE_SECURITY_IDS_MODEL`` and ``WNS_SECRET_KEYS_MODEL`` pair.
 
+
 *APNS settings*
 
 - ``APNS_CERTIFICATE``: Absolute path to your APNS certificate file. Certificates with passphrases are not supported.
@@ -143,8 +144,8 @@ FCM/GCM and APNS services have slightly different semantics. The app tries to of
 	device.send_message(None, badge=5) # No alerts but with badge.
 	device.send_message(None, content_available=True, extra={"foo": "bar"}) # Silent message with custom data.
 	# alert with title and body.
-	device.send_message("alert" : {"title" : "Game Request", "body" : "Bob wants to play poker", extra={"foo": "bar"})
-	device.send_message("Hello again", thread_id="123" extra={"foo": "bar"}) # set thread-id to allow iOS to merge notifications
+	device.send_message(message={"title" : "Game Request", "body" : "Bob wants to play poker"}, extra={"foo": "bar"})
+	device.send_message("Hello again", thread_id="123", extra={"foo": "bar"}) # set thread-id to allow iOS to merge notifications
 
 .. note::
 	APNS does not support sending payloads that exceed 2048 bytes (increased from 256 in 2014).
@@ -214,7 +215,6 @@ You can disable this default behaviour by setting ``use_fcm_notifications`` to `
 
 	# Send a data message with classic format
 	fcm_device.send_message("This is a message", use_fcm_notifications=False)
-
 
 Sending FCM/GCM messages to topic members
 -----------------------------------------

@@ -121,6 +121,7 @@ def _cm_handle_response(registration_ids, response_data, cloud_type):
 
 
 def _cm_send_request(registration_ids, data, application_id, cloud_type="GCM", use_fcm_notifications=True, **kwargs):
+
 	"""
 	Sends a FCM or GCM notification to one or more registration_ids as json data.
 	The registration_ids needs to be a list.
@@ -200,12 +201,12 @@ def send_message(registration_ids, data, application_id=None, cloud_type="GCM", 
 	bulk = False
 	if not isinstance(registration_ids, list):
 		bulk = True
+
 		registration_ids = [registration_ids] if registration_ids else None
 
 	# FCM only allows up to 1000 reg ids per bulk message
 	# https://firebase.google.com/docs/cloud-messaging/server#http-request
 	if registration_ids:
-
 		ret = []
 		for chunk in _chunks(registration_ids, max_recipients):
 			ret.append(_cm_send_request(chunk, data, application_id, cloud_type=cloud_type, **kwargs))

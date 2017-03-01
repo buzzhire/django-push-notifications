@@ -54,20 +54,20 @@ class GCMDeviceQuerySet(models.query.QuerySet):
 			if message is not None:
 				data["message"] = message
 
-			app_ids = set(self.filter(active=True).values_list('application_id', flat=True).distinct())
+			app_ids = set(self.filter(active=True).values_list("application_id", flat=True).distinct())
 			response = []
 			for cloud_type in ("FCM", "GCM"):
 				for app_id in app_ids:
 					reg_ids = list(
 						self.filter(active=True, cloud_message_type=cloud_type, application_id=app_id).values_list(
-							'registration_id', flat=True
+							"registration_id", flat=True
 						)
 					)
 					if reg_ids:
 						r = gcm_send_message(reg_ids, data, app_id, cloud_type, **kwargs)
-						if hasattr(r, 'keys'):
+						if hasattr(r, "keys"):
 							response += [r]
-						elif hasattr(r, '__getitem__'):
+						elif hasattr(r, "__getitem__"):
 							response += r
 
 			return response
@@ -102,6 +102,7 @@ class GCMDevice(Device):
 		return gcm_send_message(self.registration_id, data, self.application_id, self.cloud_message_type, **kwargs)
 
 
+
 class APNSDeviceManager(models.Manager):
 	def get_queryset(self):
 		return APNSDeviceQuerySet(self.model)
@@ -112,11 +113,11 @@ class APNSDeviceQuerySet(models.query.QuerySet):
 		if self:
 			from .apns import apns_send_bulk_message
 
-			app_ids = set(self.filter(active=True).values_list('application_id', flat=True).distinct())
+			app_ids = set(self.filter(active=True).values_list("application_id", flat=True).distinct())
 			res = []
 			for app_id in app_ids:
 				reg_ids = list(self.filter(active=True, application_id=app_id).values_list(
-					'registration_id', flat=True)
+					"registration_id", flat=True)
 				)
 				r = apns_send_bulk_message(
 					registration_ids=reg_ids,
@@ -125,9 +126,9 @@ class APNSDeviceQuerySet(models.query.QuerySet):
 					certfile=certfile,
 					**kwargs
 				)
-				if hasattr(r, 'keys'):
+				if hasattr(r, "keys"):
 					res += [r]
-				elif hasattr(r, '__getitem__'):
+				elif hasattr(r, "__getitem__"):
 					res += r
 			return res
 
@@ -167,16 +168,16 @@ class WNSDeviceQuerySet(models.query.QuerySet):
 		if self:
 			from .wns import wns_send_bulk_message
 
-			app_ids = set(self.filter(active=True).values_list('application_id', flat=True).distinct())
+			app_ids = set(self.filter(active=True).values_list("application_id", flat=True).distinct())
 			res = []
 			for app_id in app_ids:
 				reg_ids = list(self.filter(active=True, application_id=app_id).values_list(
-					'registration_id', flat=True)
+					"registration_id", flat=True)
 				)
 				r = wns_send_bulk_message(uri_list=reg_ids, message=message, **kwargs)
-				if hasattr(r, 'keys'):
+				if hasattr(r, "keys"):
 					res += [r]
-				elif hasattr(r, '__getitem__'):
+				elif hasattr(r, "__getitem__"):
 					res += r
 			return res
 
@@ -200,7 +201,7 @@ class WNSDevice(Device):
 
 
 # This is an APNS-only function right now, but maybe GCM will implement it
-# in the future.  But the definition of 'expired' may not be the same. Whatevs
+# in the future.  But the definition of "expired" may not be the same. Whatevs
 def get_expired_tokens(application_id):
 	from .apns import apns_fetch_inactive_ids
 	return apns_fetch_inactive_ids(application_id)
@@ -211,7 +212,7 @@ class ApplicationModelBase(models.Model):
 	gcm_api_key = models.TextField(verbose_name=_("GCM API Key"), null=True, blank=True)
 	fcm_api_key = models.TextField(verbose_name=_("FCM API Key"), null=True, blank=True)
 	apns_certificate = models.FileField(verbose_name=_("APNS Certificate"), null=True, blank=True,
-										upload_to='apns_certificates')
+										upload_to="apns_certificates")
 	wns_package_security_id = models.TextField(verbose_name=_("WNS Package Security ID"), null=True, blank=True)
 	wns_secret_key = models.TextField(verbose_name=_("WNS Security Key"), null=True, blank=True)
 
